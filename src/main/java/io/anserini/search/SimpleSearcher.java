@@ -25,6 +25,7 @@ import io.anserini.index.generator.TweetGenerator;
 import io.anserini.rerank.RerankerCascade;
 import io.anserini.rerank.RerankerContext;
 import io.anserini.rerank.ScoredDocuments;
+import io.anserini.rerank.lib.BM25PrfReranker;
 import io.anserini.rerank.lib.Rm3Reranker;
 import io.anserini.rerank.lib.ScoreTiesAdjusterReranker;
 import io.anserini.search.query.BagOfWordsQueryGenerator;
@@ -190,6 +191,23 @@ public class SimpleSearcher implements Closeable {
     cascade.add(new ScoreTiesAdjusterReranker());
   }
 
+  //AV added to support PRF 20/4/2020
+  //Note that it searches the lucene contents only (as a default)
+  public void setPRFbm25Reranker (int fbTerms, int fbDocs, float k1, float b, float newTermWeight,boolean bm25PRF_outputQuery) {
+	  isRerank = true;
+	  cascade = new RerankerCascade("prf-bm25");
+	  cascade.add(new BM25PrfReranker(this.analyzer , IndexArgs.CONTENTS, fbTerms, fbDocs, k1, b, newTermWeight, bm25PRF_outputQuery));
+	  cascade.add(new ScoreTiesAdjusterReranker());
+  }
+  
+  //AV added to support PRF 20/4/2020
+  public void unsetPRFbm25ReRanker() {
+    this.isRerank = false;
+    cascade = new RerankerCascade();
+    cascade.add(new ScoreTiesAdjusterReranker());
+	  
+  }
+  
   public void setLMDirichletSimilarity(float mu) {
     this.similarity = new LMDirichletSimilarity(mu);
 
