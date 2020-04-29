@@ -102,7 +102,9 @@ public class CovidParagraphUMLSCollection extends DocumentCollection<CovidParagr
                         FileReader recordFullTextFileReader = new FileReader(recordFullTextPath);
                         ObjectMapper mapper = new ObjectMapper();
                         JsonNode recordJsonNode = mapper.readerFor(JsonNode.class).readTree(recordFullTextFileReader);
-                        abstractIterator = recordJsonNode.get("abstract").elements();
+                        if (recordJsonNode.has("abstract")) {
+                            abstractIterator = recordJsonNode.get("abstract").elements();
+                        }
                         paragraphIterator = recordJsonNode.get("body_text").elements();
                         if (recordJsonNode.has("metadata")) {
                             if (recordJsonNode.get("metadata").has("title_umls")) {
