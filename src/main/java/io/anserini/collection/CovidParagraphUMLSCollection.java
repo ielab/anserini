@@ -130,7 +130,10 @@ public class CovidParagraphUMLSCollection extends DocumentCollection<CovidParagr
         private Document createSourceDoc(JsonNode node, Integer paragraphNumber, String paragraphType) {
             // if the record contains more paragraphs, we parse them
             String paragraph = node.get("text").asText();
-            String paragraph_umls = node.get("text_umls").asText();
+            String paragraph_umls = "";
+            if (node.has("text_umls")) {
+                paragraph_umls = node.get("text_umls").asText();
+            }
             return new Document(record, paragraph, paragraph_umls, paragraphNumber, paragraphType);
         }
 
