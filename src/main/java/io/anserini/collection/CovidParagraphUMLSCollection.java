@@ -157,7 +157,7 @@ public class CovidParagraphUMLSCollection extends DocumentCollection<CovidParagr
         public Document(CSVRecord record, String paragraph, String cuis, Integer paragraphNumber, String paragraphType) {
             this.record = record;
             id = record.get("cord_uid") + "_" + paragraphType + "_" + String.format("%05d", paragraphNumber);
-            content = String.join("\n", paragraph, cuis);
+            content = String.join("[SEP]", paragraph, cuis);
         }
     }
 }
