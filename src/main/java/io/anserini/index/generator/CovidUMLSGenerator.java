@@ -176,7 +176,7 @@ public class CovidUMLSGenerator implements LuceneDocumentGenerator<CovidCollecti
     }
 
     private void addUMLS(Document doc, String content, FieldType fieldType) {
-        String[] fields = content.split("[SEP]");
+        String[] fields = content.split("/SEP/");
         if (fields.length > 0) {
             doc.add(new Field(IndexArgs.CONTENTS, fields[0], fieldType));
         }

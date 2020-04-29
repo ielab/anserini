@@ -78,8 +78,7 @@ public class CovidParagraphUMLSCollection extends DocumentCollection<CovidParagr
             if (abstractIterator != null && abstractIterator.hasNext()) {
                 bufferedRecord = createSourceDoc(abstractIterator.next(), abstractNumber, "a");
                 abstractNumber++;
-            }
-            if (paragraphIterator != null && paragraphIterator.hasNext()) {
+            } else if (paragraphIterator != null && paragraphIterator.hasNext()) {
                 bufferedRecord = createSourceDoc(paragraphIterator.next(), paragraphNumber, "c");
                 paragraphNumber++;
             } else if (iterator.hasNext()) {
@@ -157,7 +156,7 @@ public class CovidParagraphUMLSCollection extends DocumentCollection<CovidParagr
         public Document(CSVRecord record, String paragraph, String cuis, Integer paragraphNumber, String paragraphType) {
             this.record = record;
             id = record.get("cord_uid") + "_" + paragraphType + "_" + String.format("%05d", paragraphNumber);
-            content = String.join("[SEP]", paragraph, cuis);
+            content = String.join("/SEP/", paragraph, cuis);
         }
     }
 }
