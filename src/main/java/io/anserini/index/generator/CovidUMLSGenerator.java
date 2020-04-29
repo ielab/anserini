@@ -26,6 +26,7 @@ import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.*;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.util.BytesRef;
 
 import java.io.StringReader;
@@ -115,7 +116,7 @@ public class CovidUMLSGenerator implements LuceneDocumentGenerator<CovidCollecti
             fieldType.setIndexOptions(IndexOptions.DOCS_AND_FREQS);
         }
 
-        addUMLS(doc, content);
+        addUMLS(doc, content, fieldType);
 
         // normal fields
         doc.add(new Field(CovidField.TITLE.name, covidDoc.record().get(CovidField.TITLE.name), fieldType));
@@ -174,10 +175,10 @@ public class CovidUMLSGenerator implements LuceneDocumentGenerator<CovidCollecti
         }
     }
 
-    private void addUMLS(Document doc, String content) {
+    private void addUMLS(Document doc, String content, FieldType fieldType) {
         String[] fields = content.split("[SEP]");
         if (fields.length > 0) {
-            doc.add(new StringField(IndexArgs.CONTENTS, fields[0], Field.Store.YES));
+            doc.add(new Field(IndexArgs.CONTENTS, fields[0], fieldType));
         }
         if (fields.length > 1) {
             doc.add(new StringField(CovidField.UMLS.name, fields[1], Field.Store.YES));
