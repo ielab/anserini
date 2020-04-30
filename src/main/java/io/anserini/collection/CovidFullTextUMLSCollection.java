@@ -25,9 +25,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.*;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
@@ -36,25 +34,23 @@ import java.util.Set;
 /**
  * A document collection for the CORD-19 dataset provided by Semantic Scholar.
  */
-public class CovidParagraphUMLSCollection extends DocumentCollection<CovidParagraphUMLSCollection.Document> {
-    private static final Logger LOG = LogManager.getLogger(CovidParagraphUMLSCollection.class);
+public class CovidFullTextUMLSCollection extends DocumentCollection<CovidFullTextUMLSCollection.Document> {
+    private static final Logger LOG = LogManager.getLogger(CovidFullTextUMLSCollection.class);
 
-    private String hasCovid;
-
-    public CovidParagraphUMLSCollection(Path path) {
+    public CovidFullTextUMLSCollection(Path path) {
         this.path = path;
         this.allowedFileSuffix = Set.of(".csv");
     }
 
     @Override
-    public FileSegment<CovidParagraphUMLSCollection.Document> createFileSegment(Path p) throws IOException {
+    public FileSegment<CovidFullTextUMLSCollection.Document> createFileSegment(Path p) throws IOException {
         return new Segment(p);
     }
 
     /**
      * A file containing a single CSV document.
      */
-    public class Segment extends FileSegment<CovidParagraphUMLSCollection.Document> {
+    public class Segment extends FileSegment<CovidFullTextUMLSCollection.Document> {
         CSVParser csvParser = null;
         private CSVRecord record = null;
         private Iterator<CSVRecord> iterator = null; // iterator for CSV records
@@ -78,13 +74,7 @@ public class CovidParagraphUMLSCollection extends DocumentCollection<CovidParagr
 
         @Override
         public void readNext() throws NoSuchElementException {
-            if (abstractIterator != null && abstractIterator.hasNext()) {
-                bufferedRecord = createSourceDoc(abstractIterator.next(), abstractNumber, "a");
-                abstractNumber++;
-            } else if (paragraphIterator != null && paragraphIterator.hasNext()) {
-                bufferedRecord = createSourceDoc(paragraphIterator.next(), paragraphNumber, "c");
-                paragraphNumber++;
-            } else if (iterator.hasNext()) {
+            if (iterator.hasNext()) {
                 // if CSV contains more lines, we parse the next record
                 record = iterator.next();
 
@@ -97,12 +87,14 @@ public class CovidParagraphUMLSCollection extends DocumentCollection<CovidParagr
                     fullTextPath = "/" + record.get("full_text_file") + "/pdf_json/" + hashes[hashes.length - 1].strip() + ".json";
                 }
 
-                String titleCUIs = "";
-                String titleSemtypes = "";
-                String title = "";
+                String content = "";
+                String umls = "";
+                String semtypes = "";
+                String hasCovid = "false";
+                String fullText = "";
                 if (fullTextPath != null) {
                     try {
-                        String recordFullTextPath = CovidParagraphUMLSCollection.this.path.toString() + fullTextPath;
+                        String recordFullTextPath = CovidFullTextUMLSCollection.this.path.toString() + fullTextPath;
                         FileReader recordFullTextFileReader = new FileReader(recordFullTextPath);
                         ObjectMapper mapper = new ObjectMapper();
                         JsonNode recordJsonNode = mapper.readerFor(JsonNode.class).readTree(recordFullTextFileReader);
@@ -111,21 +103,38 @@ public class CovidParagraphUMLSCollection extends DocumentCollection<CovidParagr
                         }
                         paragraphIterator = recordJsonNode.get("body_text").elements();
                         if (recordJsonNode.has("metadata")) {
-                            if (recordJsonNode.get("metadata").has("semtypes")) {
-                                titleSemtypes = recordJsonNode.get("metadata").get("semtypes").asText();
-                            }
                             if (recordJsonNode.get("metadata").has("umls")) {
-                                titleCUIs = recordJsonNode.get("metadata").get("umls").asText();
+                                umls = recordJsonNode.get("metadata").get("umls").asText();
+                            }
+                            if (recordJsonNode.get("metadata").has("semtypes")) {
+                                semtypes = recordJsonNode.get("metadata").get("semtypes").asText();
                             }
                             if (recordJsonNode.get("metadata").has("title")) {
-                                title = recordJsonNode.get("metadata").get("title").asText();
+                                content = recordJsonNode.get("metadata").get("title").asText();
+                            }
+                            if (recordJsonNode.has("isCovidI9")) {
+                                hasCovid = recordJsonNode.get("isCovidI9").asText();
                             }
                         }
-                        if (recordJsonNode.has("isCovidI9")) {
-                            hasCovid = recordJsonNode.get("isCovidI9").asText();
-                        } else {
-                            hasCovid = "false";
+
+                        if (abstractIterator != null && abstractIterator.hasNext()) {
+                            JsonNode node = abstractIterator.next();
+                            content += node.get("text").asText();
+                            fullText += node.get("text").asText();
+                            if (node.has("umls")) {
+                                umls = String.join(",", umls, node.get("umls").asText());
+                                semtypes = String.join(",", semtypes, node.get("umls").asText());
+                            }
+                        } else if (paragraphIterator != null && paragraphIterator.hasNext()) {
+                            JsonNode node = paragraphIterator.next();
+                            content += node.get("text").asText();
+                            fullText += node.get("text").asText();
+                            if (node.has("umls")) {
+                                umls = String.join(",", umls, node.get("umls").asText());
+                                semtypes = String.join(",", semtypes, node.get("umls").asText());
+                            }
                         }
+
                     } catch (IOException e) {
                         LOG.error("Error parsing file at " + fullTextPath + "\n" + e.getMessage());
                     }
@@ -134,26 +143,13 @@ public class CovidParagraphUMLSCollection extends DocumentCollection<CovidParagr
                     paragraphIterator = null;
                 }
 
-                bufferedRecord = new CovidParagraphUMLSCollection.Document(record, title, titleCUIs, titleSemtypes, hasCovid, 0, "t");
+                bufferedRecord = new CovidFullTextUMLSCollection.Document(record, content, umls, semtypes, hasCovid);
+                bufferedRecord.fields.put("full_text", fullText);
                 paragraphNumber = 0;
                 abstractNumber = 0;
             } else {
                 throw new NoSuchElementException("Reached end of CSVRecord Entries Iterator");
             }
-        }
-
-        private Document createSourceDoc(JsonNode node, Integer paragraphNumber, String paragraphType) {
-            // if the record contains more paragraphs, we parse them
-            String paragraph = node.get("text").asText();
-            String umls = "";
-            String semtypes = "";
-            if (node.has("umls")) {
-                umls = node.get("umls").asText();
-            }
-            if (node.has("semtypes")) {
-                semtypes = node.get("umls").asText();
-            }
-            return new Document(record, paragraph, umls, semtypes, hasCovid, paragraphNumber, paragraphType);
         }
 
         @Override
@@ -173,13 +169,14 @@ public class CovidParagraphUMLSCollection extends DocumentCollection<CovidParagr
      * A document in a CORD-19 collection.
      */
     public class Document extends CovidUMLSCollectionDocument {
-        public Document(CSVRecord record, String paragraph, String cuis, String semtypes, String hasCovid, Integer paragraphNumber, String paragraphType) {
+        public Document(CSVRecord record, String paragraph, String cuis, String semtypes, String hasCovid) {
             this.fields = new HashMap<>();
 
             this.record = record;
             this.fields.put("umls", cuis);
+            this.fields.put("semtypes", semtypes);
             this.fields.put("has_covid", hasCovid);
-            this.id = record.get("cord_uid") + "_" + paragraphType + "_" + String.format("%05d", paragraphNumber);
+            this.id = record.get("cord_uid");
             this.content = paragraph;
         }
     }

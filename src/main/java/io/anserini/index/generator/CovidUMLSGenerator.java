@@ -20,6 +20,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import io.anserini.analysis.DefaultEnglishAnalyzer;
 import io.anserini.collection.CovidCollectionDocument;
 import io.anserini.collection.CovidTrialstreamerCollection;
+import io.anserini.collection.CovidUMLSCollectionDocument;
 import io.anserini.index.IndexArgs;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CharArraySet;
@@ -30,11 +31,12 @@ import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.util.BytesRef;
 
 import java.io.StringReader;
+import java.util.Map;
 
 /**
  * Converts a {@link CovidCollectionDocument} into a Lucene {@link Document}, ready to be indexed.
  */
-public class CovidUMLSGenerator implements LuceneDocumentGenerator<CovidCollectionDocument> {
+public class CovidUMLSGenerator implements LuceneDocumentGenerator<CovidUMLSCollectionDocument> {
     private IndexArgs args;
 
     public enum CovidField {
@@ -54,7 +56,9 @@ public class CovidUMLSGenerator implements LuceneDocumentGenerator<CovidCollecti
         MICROSOFT_ID("Microsoft Academic Paper ID"),
         WHO("WHO #Covidence"),
         URL("url"),
-        UMLS("umls");
+        UMLS("umls"),
+        SEMTYPES("semtypes"),
+        HAS_COVID("has_covid");
 
         public final String name;
 
@@ -80,10 +84,11 @@ public class CovidUMLSGenerator implements LuceneDocumentGenerator<CovidCollecti
     }
 
     @Override
-    public Document createDocument(CovidCollectionDocument covidDoc) throws GeneratorException {
+    public Document createDocument(CovidUMLSCollectionDocument covidDoc) throws GeneratorException {
         String id = covidDoc.id();
         String content = covidDoc.contents();
         String raw = covidDoc.raw();
+        Map<String, String> fields = covidDoc.getFields();
 
         if (content == null || content.trim().isEmpty()) {
             throw new EmptyDocumentException();
@@ -116,11 +121,23 @@ public class CovidUMLSGenerator implements LuceneDocumentGenerator<CovidCollecti
             fieldType.setIndexOptions(IndexOptions.DOCS_AND_FREQS);
         }
 
-        addUMLS(doc, content, fieldType);
-
         // normal fields
+        doc.add(new Field(IndexArgs.CONTENTS, content, fieldType));
         doc.add(new Field(CovidField.TITLE.name, covidDoc.record().get(CovidField.TITLE.name), fieldType));
         doc.add(new Field(CovidField.ABSTRACT.name, covidDoc.record().get(CovidField.ABSTRACT.name), fieldType));
+        if (fields.containsKey("full_text")) {
+            doc.add(new Field(CovidField.UMLS.name, fields.get("full_text"), fieldType));
+        }
+        if (fields.containsKey("umls")) {
+            addUMLS(doc, fields.get("umls"), fieldType);
+        }
+        if (fields.containsKey("semtypes")) {
+            addSemtypes(doc, fields.get("semtypes"), fieldType);
+        }
+        if (fields.containsKey("has_covid")) {
+            doc.add(new Field(CovidField.HAS_COVID.name, fields.get("has_covid"), fieldType));
+        }
+
 
         // string fields
         doc.add(new StringField(CovidField.SHA.name, covidDoc.record().get(CovidField.SHA.name), Field.Store.YES));
@@ -140,14 +157,6 @@ public class CovidUMLSGenerator implements LuceneDocumentGenerator<CovidCollecti
         doc.add(new StringField(CovidField.URL.name,
                 covidDoc.record().get(CovidField.URL.name), Field.Store.YES));
 
-        if (covidDoc instanceof CovidTrialstreamerCollection.Document) {
-            CovidTrialstreamerCollection.Document tsDoc = (CovidTrialstreamerCollection.Document) covidDoc;
-            JsonNode facets = tsDoc.facets();
-            addTrialstreamerFacet(doc, TrialstreamerField.OUTCOMES_VOCAB.name, facets);
-            addTrialstreamerFacet(doc, TrialstreamerField.POPULATION_VOCAB.name, facets);
-            addTrialstreamerFacet(doc, TrialstreamerField.INTERVENTIONS_VOCAB.name, facets);
-        }
-
         // non-stemmed fields
         addAuthors(doc, covidDoc.record().get(CovidField.AUTHORS.name), fieldType);
 
@@ -159,6 +168,18 @@ public class CovidUMLSGenerator implements LuceneDocumentGenerator<CovidCollecti
             // can't parse year
         }
         return doc;
+    }
+
+    private void addUMLS(Document doc, String umlsString, FieldType fieldType) {
+        for (String umls : umlsString.split(",")) {
+            addNonStemmedField(doc, CovidField.UMLS.name, umls, fieldType);
+        }
+    }
+
+    private void addSemtypes(Document doc, String semtypeString, FieldType fieldType) {
+        for (String semtype : semtypeString.split(",")) {
+            addNonStemmedField(doc, CovidField.SEMTYPES.name, semtype, fieldType);
+        }
     }
 
     private void addAuthors(Document doc, String authorString, FieldType fieldType) {
@@ -175,16 +196,6 @@ public class CovidUMLSGenerator implements LuceneDocumentGenerator<CovidCollecti
         }
     }
 
-    private void addUMLS(Document doc, String content, FieldType fieldType) {
-        String[] fields = content.split("/SEP/");
-        if (fields.length > 0) {
-            doc.add(new Field(IndexArgs.CONTENTS, fields[0], fieldType));
-        }
-        if (fields.length > 1) {
-            doc.add(new StringField(CovidField.UMLS.name, fields[1], Field.Store.YES));
-        }
-    }
-
     // process author name into a standard order if it is reversed and comma separated
     // eg) Jones, Bob -> Bob Jones
     private String processAuthor(String author) {
@@ -194,13 +205,6 @@ public class CovidUMLSGenerator implements LuceneDocumentGenerator<CovidCollecti
             processedName += splitNames[i].strip() + " ";
         }
         return processedName.strip();
-    }
-
-    // indexes a list of facets from the trialstreamer COVID trials dataset
-    private void addTrialstreamerFacet(Document doc, String key, JsonNode facets) {
-        for (JsonNode value : facets.get(key)) {
-            doc.add(new StringField(key, value.asText(), Field.Store.YES));
-        }
     }
 
     // index field without stemming but store original string value
