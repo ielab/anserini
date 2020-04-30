@@ -94,7 +94,7 @@ public class CovidParagraphUMLSCollection extends DocumentCollection<CovidParagr
                     fullTextPath = "/" + record.get("full_text_file") + "/pmc_json/" + record.get("pmcid") + ".xml.json";
                 } else if (record.get("has_pdf_parse").contains("True")) {
                     String[] hashes = record.get("sha").split(";");
-                    fullTextPath = "/" + record.get("full_text_file") + "/pdf_json/" + hashes[hashes.length - 1].strip() + ".json";
+                    fullTextPath = "/" + record.get("full_text_file") + "/pdf_json/" + hashes[0].strip() + ".json";
                 }
 
                 String titleCUIs = "";
