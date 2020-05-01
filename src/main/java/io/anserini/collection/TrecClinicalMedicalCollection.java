@@ -3,19 +3,23 @@ package io.anserini.collection;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jsoup.Jsoup;
+import org.jsoup.parser.Parser;
+import org.jsoup.select.Elements;
 
-import org.xml.sax.Attributes;
-import org.xml.sax.SAXException;
-import org.xml.sax.helpers.DefaultHandler;
-
-import javax.xml.parsers.ParserConfigurationException;
-import javax.xml.parsers.SAXParser;
-import javax.xml.parsers.SAXParserFactory;
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.text.ParseException;
-import java.util.*;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.NoSuchElementException;
 
 public class TrecClinicalMedicalCollection extends DocumentCollection<TrecClinicalMedicalCollection.Document> {
 
@@ -31,7 +35,7 @@ public class TrecClinicalMedicalCollection extends DocumentCollection<TrecClinic
     }
 
     /**
-     * A file in a TREC CDS collection.
+     * A file in a TREC CDS collection. Each file contains only one article and, therefore, one Document.
      */
     public static class Segment extends FileSegment<TrecClinicalMedicalCollection.Document> {
 
@@ -58,7 +62,11 @@ public class TrecClinicalMedicalCollection extends DocumentCollection<TrecClinic
 
     }
 
+    /**
+     * A document in TREC CDS - ie one article with multiple fields.
+     */
     public static class Document extends MultifieldSourceDocument {
+        static final String[] acceptedElements = new String[]{"article-id", "article-title", "abstract", "body", "journal-title", "year"};
 
         private String id;
         private String contents;
@@ -66,41 +74,41 @@ public class TrecClinicalMedicalCollection extends DocumentCollection<TrecClinic
 
 
         public Document(BufferedReader bRdr, String fileName) throws IOException {
-            LOG.info("Creating a new TREC CDS document for "+fileName);
+            this.fields = new HashMap<String, String>();
 
-            ClinicalXMLDocumentHandler handler = new ClinicalXMLDocumentHandler();
-            SAXParserFactory factory = SAXParserFactory.newInstance();
-            factory.setValidating(false);
-            try {
-                factory.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
-                SAXParser saxParser = factory.newSAXParser();
-                saxParser.parse(fileName, handler);
-            } catch (ParserConfigurationException e) {
-                throw new RuntimeException("Unable to parse the XML document" + fileName);
-            } catch (SAXException se) {
-                throw new RuntimeException(se.getMessage());
-            } catch (Exception ee) {
-                ee.printStackTrace();
+            Path path = Paths.get(fileName);
+            org.jsoup.nodes.Document doc = Jsoup.parse(new String(Files.readAllBytes(path)), "", Parser.xmlParser());
+
+            // look for each of the fields we want
+            for (String fieldName : acceptedElements) {
+                Elements elements = doc.select(fieldName);
+                if (elements.size() > 0) {
+                    fields.put(fieldName, elements.get(0).text());
+                }
             }
 
-            fields = handler.getArticleContents();
+            this.id = findBestId();
             contents = StringUtils.join(fields, " ");
-
-            if(fields.containsKey("article-id-pmid")) {
-                id = fields.get("article-id-pmid");
-            } else if(fields.containsKey("article-id-pmc")) {
-                id = fields.get("article-id-pmc");
-            } else if(fields.containsKey("article-id-publisher-id")) {
-                id = fields.get("article-id-publisher-id");
-            } else if(fields.containsKey("article-id-doi")) {
-                id = fields.get("article-id-doi");
-            } else {
-                id = Integer.toString(fields.get("article-title").hashCode());
-            }
-
         }
 
-
+        /**
+         * Find the best id from the list of possible ones.
+         *
+         * @return id as String.
+         */
+        private String findBestId() {
+            String theId = Integer.toString(fields.get("article-title").hashCode());
+            if (fields.containsKey("article-id-pmid")) {
+                theId = fields.get("article-id-pmid");
+            } else if (fields.containsKey("article-id-pmc")) {
+                theId = fields.get("article-id-pmc");
+            } else if (fields.containsKey("article-id-publisher-id")) {
+                theId = fields.get("article-id-publisher-id");
+            } else if (fields.containsKey("article-id-doi")) {
+                theId = fields.get("article-id-doi");
+            }
+            return theId;
+        }
 
         @Override
         public String id() {
@@ -110,14 +118,14 @@ public class TrecClinicalMedicalCollection extends DocumentCollection<TrecClinic
         @Override
         public String contents() {
             if (contents == null) {
-                throw new RuntimeException("JSON document has no \"contents\" field");
+                throw new RuntimeException("XML document has no \"contents\" field");
             }
             return contents;
         }
 
         @Override
         public String raw() {
-           return contents();
+            return contents();
         }
 
         @Override
@@ -130,44 +138,6 @@ public class TrecClinicalMedicalCollection extends DocumentCollection<TrecClinic
             return fields;
         }
 
-        /**
-         * Handles the process of getting the right information out of a TREC CDS XML document.
-         * Practically creates a map of of elementName -> elementValue for a set of pre-defined fields; e.g.,
-         * title, abstract, etc.
-         */
-        private class ClinicalXMLDocumentHandler extends DefaultHandler {
-            String[] acceptedElements = new String[] {"article-id", "article-title", "abstract", "body"};
-            HashMap<String, String> articleContents = new HashMap<String, String>();
-
-            String articleIdType;
-            String elementValue;
-
-            @Override
-            public void startElement (String uri, String localName, String qName, Attributes attributes) {
-                // TODO: handle checking of element to get the right id here
-                if(qName.equalsIgnoreCase("article-id")) {
-                    articleIdType = attributes.getValue("pub-id-type");
-                }
-            }
-
-            @Override
-            public void endElement(String uri, String localName, String qName) throws SAXException {
-                if(Arrays.asList(acceptedElements).contains(qName)) {
-                    if(qName.equalsIgnoreCase("article-id")) {
-                        qName = qName + "-" + articleIdType;
-                    }
-                    articleContents.put(qName.toLowerCase(), elementValue);
-                }
-            }
-
-            @Override
-            public void characters(char[] ch, int start, int length) throws SAXException {
-                elementValue = new String(ch, start, length);
-            }
-
-            public HashMap<String, String> getArticleContents() { return this.articleContents; }
-        };
     }
-
 
 }
