@@ -16,16 +16,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.text.ParseException;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.NoSuchElementException;
+import java.util.*;
 
 public class TrecClinicalMedicalCollection extends DocumentCollection<TrecClinicalMedicalCollection.Document> {
 
     private static final Logger LOG = LogManager.getLogger(TrecClinicalMedicalCollection.class);
 
     public TrecClinicalMedicalCollection(Path path) {
+        this.allowedFileSuffix = new HashSet<>(Arrays.asList(".nxml", ".xml"));
         this.path = path;
     }
 
@@ -68,12 +66,14 @@ public class TrecClinicalMedicalCollection extends DocumentCollection<TrecClinic
     public static class Document extends MultifieldSourceDocument {
         static final String[] acceptedElements = new String[]{"article-id", "article-title", "abstract", "body", "journal-title", "year"};
 
+        private String fileName;
         private String id;
         private String contents;
         private Map<String, String> fields;
 
 
         public Document(BufferedReader bRdr, String fileName) throws IOException {
+            this.fileName = fileName;
             this.fields = new HashMap<String, String>();
 
             Path path = Paths.get(fileName);
@@ -97,7 +97,7 @@ public class TrecClinicalMedicalCollection extends DocumentCollection<TrecClinic
          * @return id as String.
          */
         private String findBestId() {
-            String theId = Integer.toString(fields.get("article-title").hashCode());
+            String theId = this.fileName;
             if (fields.containsKey("article-id-pmid")) {
                 theId = fields.get("article-id-pmid");
             } else if (fields.containsKey("article-id-pmc")) {
