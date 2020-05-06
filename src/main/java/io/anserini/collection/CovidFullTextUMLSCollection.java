@@ -26,8 +26,10 @@ import org.apache.logging.log4j.Logger;
 
 import java.io.*;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.nio.file.Files;
 import java.util.NoSuchElementException;
 import java.util.Set;
 
@@ -98,11 +100,13 @@ public class CovidFullTextUMLSCollection extends DocumentCollection<CovidFullTex
                 String semtypes = "";
                 String hasCovid = "false";
                 String fullText = "";
+                String raw = "";
                 if (fullTextPath != null) {
                     try {
                         String recordFullTextPath = CovidFullTextUMLSCollection.this.path.toString() + fullTextPath;
                         FileReader recordFullTextFileReader = new FileReader(recordFullTextPath);
                         ObjectMapper mapper = new ObjectMapper();
+                        raw = new String(Files.readAllBytes(Paths.get(recordFullTextPath)));
                         JsonNode recordJsonNode = mapper.readerFor(JsonNode.class).readTree(recordFullTextFileReader);
                         if (recordJsonNode.has("abstract")) {
                             abstractIterator = recordJsonNode.get("abstract").elements();
@@ -149,7 +153,7 @@ public class CovidFullTextUMLSCollection extends DocumentCollection<CovidFullTex
                     paragraphIterator = null;
                 }
 
-                bufferedRecord = new CovidFullTextUMLSCollection.Document(record, content, umls, semtypes, hasCovid);
+                bufferedRecord = new CovidFullTextUMLSCollection.Document(record, content, umls, semtypes, hasCovid, raw);
                 bufferedRecord.fields.put("full_text", fullText);
                 paragraphNumber = 0;
                 abstractNumber = 0;
@@ -175,7 +179,7 @@ public class CovidFullTextUMLSCollection extends DocumentCollection<CovidFullTex
      * A document in a CORD-19 collection.
      */
     public class Document extends CovidUMLSCollectionDocument {
-        public Document(CSVRecord record, String paragraph, String cuis, String semtypes, String hasCovid) {
+        public Document(CSVRecord record, String paragraph, String cuis, String semtypes, String hasCovid, String raw) {
             this.fields = new HashMap<>();
 
             this.record = record;
@@ -183,6 +187,7 @@ public class CovidFullTextUMLSCollection extends DocumentCollection<CovidFullTex
             this.fields.put("semtypes", semtypes);
             this.fields.put("has_covid", hasCovid);
             this.id = record.get("cord_uid");
+            this.raw = raw;
             this.content = record.get("title") + " " + record.get("abstract") + paragraph;
         }
     }
