@@ -58,7 +58,8 @@ public class CovidUMLSGenerator implements LuceneDocumentGenerator<CovidUMLSColl
         URL("url"),
         UMLS("umls"),
         SEMTYPES("semtypes"),
-        HAS_COVID("has_covid");
+        HAS_COVID("has_covid"),
+        FULL_TEXT("full_text");
 
         public final String name;
 
@@ -126,7 +127,7 @@ public class CovidUMLSGenerator implements LuceneDocumentGenerator<CovidUMLSColl
         doc.add(new Field(CovidField.TITLE.name, covidDoc.record().get(CovidField.TITLE.name), fieldType));
         doc.add(new Field(CovidField.ABSTRACT.name, covidDoc.record().get(CovidField.ABSTRACT.name), fieldType));
         if (fields.containsKey("full_text")) {
-            doc.add(new Field(CovidField.UMLS.name, fields.get("full_text"), fieldType));
+            doc.add(new Field(CovidField.FULL_TEXT.name, fields.get("full_text"), fieldType));
         }
         if (fields.containsKey("umls")) {
             addUMLS(doc, fields.get("umls"), fieldType);
