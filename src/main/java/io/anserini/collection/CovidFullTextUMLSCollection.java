@@ -183,7 +183,7 @@ public class CovidFullTextUMLSCollection extends DocumentCollection<CovidFullTex
             this.fields.put("semtypes", semtypes);
             this.fields.put("has_covid", hasCovid);
             this.id = record.get("cord_uid");
-            this.content = paragraph;
+            this.content = record.get("title") + " " + record.get("abstract") + paragraph;
         }
     }
 }
