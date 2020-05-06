@@ -86,7 +86,7 @@ public class CovidFullTextUMLSCollection extends DocumentCollection<CovidFullTex
                     String[] hashes = record.get("sha").split(";");
                     fullTextPath = "/" + record.get("full_text_file") + "/pdf_json/" + hashes[0].strip() + ".json";
                 } else if (record.get("has_pmc_xml_parse").contains("False") && record.get("has_pdf_parse").contains("False")) {
-                    fullTextPath = "/" + record.get("full_text_file") + "/" + record.get("cord_id") + ".json";
+                    fullTextPath = "/" + record.get("full_text_file") + "/" + record.get("cord_uid") + ".json";
                 }
 
                 String content = "";
