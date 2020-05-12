@@ -94,9 +94,10 @@ public class CovidParagraphUMLSCollection extends DocumentCollection<CovidParagr
                     fullTextPath = "/" + record.get("full_text_file") + "/pmc_json/" + record.get("pmcid") + ".xml.json";
                 } else if (record.get("has_pdf_parse").contains("True")) {
                     String[] hashes = record.get("sha").split(";");
-                    fullTextPath = "/" + record.get("full_text_file") + "/pdf_json/" + hashes[0].strip() + ".json";
+//                    fullTextPath = "/" + record.get("full_text_file") + "/pdf_json/" + hashes[0].strip() + ".json";
+                    fullTextPath = "/" + record.get("full_text_file") + "/pdf_json/" + hashes[hashes.length - 1].strip() + ".json";
                 } else if (record.get("has_pmc_xml_parse").contains("False") && record.get("has_pdf_parse").contains("False")) {
-                    String path = "/" + record.get("full_text_file") + "/" + record.get("cord_uid") + ".json";
+                    String path = "/newJsonFiles/" + record.get("cord_uid") + ".json";
                     File f = new File(path);
                     if (f.exists() && !f.isDirectory()) {
                         fullTextPath = path;
@@ -117,20 +118,20 @@ public class CovidParagraphUMLSCollection extends DocumentCollection<CovidParagr
                         }
                         paragraphIterator = recordJsonNode.get("body_text").elements();
                         if (recordJsonNode.has("metadata")) {
-                            if (recordJsonNode.get("metadata").has("semtypes")) {
-                                titleSemtypes = recordJsonNode.get("metadata").get("semtypes").asText();
+                            if (recordJsonNode.get("metadata").has("title_umls_semtypes")) {
+                                titleSemtypes = recordJsonNode.get("metadata").get("title_umls_semtypes").asText();
                             }
-                            if (recordJsonNode.get("metadata").has("umls")) {
-                                titleCUIs = recordJsonNode.get("metadata").get("umls").asText();
+                            if (recordJsonNode.get("metadata").has("title_umls_concepts")) {
+                                titleCUIs = recordJsonNode.get("metadata").get("title_umls_concepts").asText();
                             }
                             if (recordJsonNode.get("metadata").has("title")) {
                                 title = recordJsonNode.get("metadata").get("title").asText();
                             }
                         }
-                        if (recordJsonNode.has("isCovidI9")) {
-                            hasCovid = recordJsonNode.get("isCovidI9").asText();
+                        if (recordJsonNode.has("hasCovid19")) {
+                            hasCovid = recordJsonNode.get("hasCovid19").asText();
                         } else {
-                            hasCovid = "false";
+                            hasCovid = "False";
                         }
                     } catch (IOException e) {
                         LOG.error("Error parsing file at " + fullTextPath + "\n" + e.getMessage());
@@ -153,11 +154,22 @@ public class CovidParagraphUMLSCollection extends DocumentCollection<CovidParagr
             String paragraph = node.get("text").asText();
             String umls = "";
             String semtypes = "";
-            if (node.has("umls")) {
-                umls = node.get("umls").asText();
+            String umlsStartAttr;
+            switch (paragraphType) {
+                case "a":
+                case "c":
+                    umlsStartAttr = "text_";
+                    break;
+                default:
+                    umlsStartAttr = "title_";
             }
-            if (node.has("semtypes")) {
-                semtypes = node.get("umls").asText();
+            String umlsAttr = umlsStartAttr + "umls_concepts";
+            String semtypesAttr = umlsStartAttr + "umls_semtypes";
+            if (node.has(umlsAttr)) {
+                umls = node.get(umlsAttr).asText();
+            }
+            if (node.has(semtypesAttr)) {
+                semtypes = node.get(semtypesAttr).asText();
             }
             return new Document(record, paragraph, umls, semtypes, hasCovid, paragraphNumber, paragraphType);
         }
@@ -184,6 +196,7 @@ public class CovidParagraphUMLSCollection extends DocumentCollection<CovidParagr
 
             this.record = record;
             this.fields.put("umls", cuis);
+            this.fields.put("semtypes", semtypes);
             this.fields.put("has_covid", hasCovid);
             this.id = record.get("cord_uid") + "_" + paragraphType + "_" + String.format("%05d", paragraphNumber);
             this.content = paragraph;

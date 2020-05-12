@@ -86,9 +86,10 @@ public class CovidFullTextUMLSCollection extends DocumentCollection<CovidFullTex
                     fullTextPath = "/" + record.get("full_text_file") + "/pmc_json/" + record.get("pmcid") + ".xml.json";
                 } else if (record.get("has_pdf_parse").contains("True")) {
                     String[] hashes = record.get("sha").split(";");
-                    fullTextPath = "/" + record.get("full_text_file") + "/pdf_json/" + hashes[0].strip() + ".json";
+//                    fullTextPath = "/" + record.get("full_text_file") + "/pdf_json/" + hashes[0].strip() + ".json";
+                    fullTextPath = "/" + record.get("full_text_file") + "/pdf_json/" + hashes[hashes.length - 1].strip() + ".json";
                 } else if (record.get("has_pmc_xml_parse").contains("False") && record.get("has_pdf_parse").contains("False")) {
-                    String path = "/" + record.get("full_text_file") + "/" + record.get("cord_uid") + ".json";
+                    String path = "/newJsonFiles/" + record.get("cord_uid") + ".json";
                     File f = new File(path);
                     if (f.exists() && !f.isDirectory()) {
                         fullTextPath = path;
@@ -98,7 +99,7 @@ public class CovidFullTextUMLSCollection extends DocumentCollection<CovidFullTex
                 StringBuilder content = new StringBuilder();
                 String umls = "";
                 String semtypes = "";
-                String hasCovid = "false";
+                String hasCovid = "False";
                 StringBuilder fullText = new StringBuilder();
                 String raw = "";
                 if (fullTextPath != null) {
@@ -122,8 +123,13 @@ public class CovidFullTextUMLSCollection extends DocumentCollection<CovidFullTex
                             if (recordJsonNode.get("metadata").has("title")) {
                                 content = new StringBuilder(recordJsonNode.get("metadata").get("title").asText());
                             }
-                            if (recordJsonNode.has("isCovidI9")) {
-                                hasCovid = recordJsonNode.get("isCovidI9").asText();
+                            if (recordJsonNode.get("metadata").has("title_umls_concepts")) {
+                                JsonNode node = recordJsonNode.get("metadata");
+                                umls = String.join(",", umls, node.get("title_umls_concepts").asText());
+                                semtypes = String.join(",", semtypes, node.get("title_umls_semtypes").asText());
+                            }
+                            if (recordJsonNode.has("hasCovid19")) {
+                                hasCovid = recordJsonNode.get("hasCovid19").asText();
                             }
                         }
 
@@ -131,18 +137,18 @@ public class CovidFullTextUMLSCollection extends DocumentCollection<CovidFullTex
                             JsonNode node = abstractIterator.next();
                             content.append(node.get("text").asText());
                             fullText.append(node.get("text").asText());
-                            if (node.has("umls")) {
-                                umls = String.join(",", umls, node.get("umls").asText());
-                                semtypes = String.join(",", semtypes, node.get("umls").asText());
+                            if (node.has("text_umls_concepts")) {
+                                umls = String.join(",", umls, node.get("text_umls_concepts").asText());
+                                semtypes = String.join(",", semtypes, node.get("text_umls_semtypes").asText());
                             }
                         }
                         while (paragraphIterator != null && paragraphIterator.hasNext()) {
                             JsonNode node = paragraphIterator.next();
                             content.append(node.get("text").asText());
                             fullText.append(node.get("text").asText());
-                            if (node.has("umls")) {
-                                umls = String.join(",", umls, node.get("umls").asText());
-                                semtypes = String.join(",", semtypes, node.get("umls").asText());
+                            if (node.has("text_umls_concepts")) {
+                                umls = String.join(",", umls, node.get("text_umls_concepts").asText());
+                                semtypes = String.join(",", semtypes, node.get("text_umls_semtypes").asText());
                             }
                         }
 
@@ -189,7 +195,10 @@ public class CovidFullTextUMLSCollection extends DocumentCollection<CovidFullTex
             this.fields.put("has_covid", hasCovid);
             this.id = record.get("cord_uid");
             this.raw = raw;
-            this.content = record.get("title") + " " + record.get("abstract") + paragraph;
+            this.content = paragraph;
+            if (paragraph.length() == 0) {
+                this.content = record.get("title") + " " + record.get("abstract");
+            }
         }
     }
 }
