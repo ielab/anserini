@@ -173,13 +173,17 @@ public class CovidUMLSGenerator implements LuceneDocumentGenerator<CovidUMLSColl
 
     private void addUMLS(Document doc, String umlsString, FieldType fieldType) {
         for (String umls : umlsString.split(",")) {
-            addNonStemmedField(doc, CovidField.UMLS.name, umls, fieldType);
+            if (umls.length() > 0) {
+                addNonStemmedField(doc, CovidField.UMLS.name, umls, fieldType);
+            }
         }
     }
 
     private void addSemtypes(Document doc, String semtypeString, FieldType fieldType) {
         for (String semtype : semtypeString.split(",")) {
-            addNonStemmedField(doc, CovidField.SEMTYPES.name, semtype, fieldType);
+            if (semtype.length() > 0) {
+                addNonStemmedField(doc, CovidField.SEMTYPES.name, semtype, fieldType);
+            }
         }
     }
 
